@@ -1,0 +1,196 @@
+﻿@page "/policies"
+@using System.ComponentModel.DataAnnotations
+@using InsuranceAnalyzer.Application.Policies
+@using InsuranceAnalyzer.Core.Entities
+@inject IPolicyService PolicyService
+
+<PageTitle>Policies | Insurance Analyzer</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">POLICY REGISTER</p>
+        <h1>Insurance policies</h1>
+        <p class="muted">Register policies before uploading and analyzing their documents.</p>
+    </div>
+</div>
+
+<div class="content-grid">
+    <section class="panel">
+        <div class="panel-heading">
+            <div><h2>Registered policies</h2><p class="muted">Saved in your local SQL Server database.</p></div>
+            <button class="secondary-button" @onclick="LoadPolicies">↻ Refresh</button>
+        </div>
+
+        @if (isLoading)
+        {
+            <p class="muted">Loading policies...</p>
+        }
+        else if (policies.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-icon">▤</div>
+                <h3>No policies registered yet</h3>
+                <p>Add your first insurance policy using the form.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Policy number</th><th>Policyholder</th><th>Policy name</th><th>Annual premium</th><th>Status</th></tr></thead>
+                    <tbody>
+                        @foreach (var policy in policies)
+                        {
+                            <tr>
+                                <td><strong>@policy.PolicyNumber</strong></td>
+                                <td>@policy.PolicyholderName</td>
+                                <td>@(policy.PolicyName ?? "—")</td>
+                                <td>@(policy.AnnualizedPremium?.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("en-IN")) ?? "—")</td>
+                                <td><span class="table-status">@policy.AnalysisStatus</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <section class="panel form-panel">
+        <div class="panel-heading"><div><h2>Add a policy</h2><p class="muted">Basic details for the policy register.</p></div></div>
+        <EditForm Model="form" OnValidSubmit="CreatePolicy">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <label>Policy number <span>*</span></label>
+            <InputText @bind-Value="form.PolicyNumber" class="form-control" placeholder="e.g. 1234567890" />
+            <ValidationMessage For="() => form.PolicyNumber" />
+
+            <label>Policyholder name <span>*</span></label>
+            <InputText @bind-Value="form.PolicyholderName" class="form-control" placeholder="Full name" />
+            <ValidationMessage For="() => form.PolicyholderName" />
+
+            <label>Policy / plan name</label>
+            <InputText @bind-Value="form.PolicyName" class="form-control" placeholder="e.g. Endowment Plan" />
+
+            <div class="two-fields">
+                <div><label>Policy term (years)</label><InputNumber @bind-Value="form.PolicyTermYears" class="form-control" /></div>
+                <div><label>Premium-paying term</label><InputNumber @bind-Value="form.PremiumPayingTermYears" class="form-control" /></div>
+            </div>
+
+            <label>Annualized premium (₹)</label>
+            <InputNumber @bind-Value="form.AnnualizedPremium" class="form-control" />
+
+            <label>Commencement date</label>
+            <InputDate @bind-Value="form.CommencementDate" class="form-control" />
+
+            <label>Premium frequency</label>
+            <InputSelect @bind-Value="form.PremiumFrequency" class="form-control">
+                <option>Annual</option>
+                <option>Half-yearly</option>
+                <option>Quarterly</option>
+                <option>Monthly</option>
+                <option>Single</option>
+            </InputSelect>
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="message error">@errorMessage</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(successMessage))
+            {
+                <div class="message success">@successMessage</div>
+            }
+
+            <button class="primary-button full-width" type="submit" disabled="@isSaving">
+                @(isSaving ? "Saving..." : "Save policy")
+            </button>
+        </EditForm>
+    </section>
+</div>
+
+@code {
+    private List<InsurancePolicy> policies = [];
+    private bool isLoading = true;
+    private bool isSaving;
+    private string? errorMessage;
+    private string? successMessage;
+
+    private PolicyForm form = new();
+
+    protected override async Task OnInitializedAsync() => await LoadPolicies();
+
+    private async Task LoadPolicies()
+    {
+        isLoading = true;
+        try
+        {
+            policies = (await PolicyService.GetAllAsync()).ToList();
+            errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Could not load policies. Check SQL Server connectivity. Details: {ex.GetBaseException().Message}";
+        }
+        finally { isLoading = false; }
+    }
+
+    private async Task CreatePolicy()
+    {
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+        try
+        {
+            var policy = new InsurancePolicy
+            {
+                PolicyNumber = form.PolicyNumber.Trim(),
+                PolicyholderName = form.PolicyholderName.Trim(),
+                PolicyName = string.IsNullOrWhiteSpace(form.PolicyName) ? null : form.PolicyName.Trim(),
+                PolicyTermYears = form.PolicyTermYears,
+                PremiumPayingTermYears = form.PremiumPayingTermYears,
+                AnnualizedPremium = form.AnnualizedPremium,
+                CommencementDate = form.CommencementDate,
+                PremiumFrequency = form.PremiumFrequency,
+                CurrencyCode = "INR",
+                AnalysisStatus = "NotStarted"
+            };
+
+            await PolicyService.CreateAsync(policy);
+            form = new();
+            successMessage = "Policy saved successfully.";
+            await LoadPolicies();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.GetBaseException().Message.Contains("IX_InsurancePolicies_PolicyNumber", StringComparison.OrdinalIgnoreCase)
+                ? "This policy number is already registered."
+                : $"Could not save policy: {ex.GetBaseException().Message}";
+        }
+        finally { isSaving = false; }
+    }
+
+    private sealed class PolicyForm
+    {
+        [Required(ErrorMessage = "Policy number is required.")]
+        [StringLength(100)]
+        public string PolicyNumber { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Policyholder name is required.")]
+        [StringLength(200)]
+        public string PolicyholderName { get; set; } = string.Empty;
+
+        [StringLength(250)]
+        public string? PolicyName { get; set; }
+
+        [Range(1, 100)]
+        public int? PolicyTermYears { get; set; }
+
+        [Range(1, 100)]
+        public int? PremiumPayingTermYears { get; set; }
+
+        [Range(typeof(decimal), "0", "999999999999")]
+        public decimal? AnnualizedPremium { get; set; }
+
+        public DateTime? CommencementDate { get; set; }
+        public string PremiumFrequency { get; set; } = "Annual";
+    }
+}

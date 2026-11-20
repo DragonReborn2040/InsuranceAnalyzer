@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="InsuranceAnalyzer.Application/InsuranceAnalyzer.Application.csproj" />
+  <Project Path="InsuranceAnalyzer.CalculationEngine/InsuranceAnalyzer.CalculationEngine.csproj" />
+  <Project Path="InsuranceAnalyzer.Core/InsuranceAnalyzer.Core.csproj" />
+  <Project Path="InsuranceAnalyzer.Infrastructure/InsuranceAnalyzer.Infrastructure.csproj" />
+  <Project Path="InsuranceAnalyzer.Tests/InsuranceAnalyzer.Tests.csproj" />
+  <Project Path="InsuranceAnalyzer.Web/InsuranceAnalyzer.Web.csproj" />
+</Solution>

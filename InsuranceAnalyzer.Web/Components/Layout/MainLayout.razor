@@ -1,0 +1,27 @@
+﻿@inherits LayoutComponentBase
+
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">IA</div>
+            <div>
+                <strong>Insurance Analyzer</strong>
+                <small>Personal workspace</small>
+            </div>
+        </div>
+        <nav>
+            <NavLink href="/" Match="NavLinkMatch.All">Overview</NavLink>
+            <NavLink href="/policies">Policies</NavLink>
+        </nav>
+        <div class="sidebar-footer">Local application · Your PC</div>
+    </aside>
+    <main class="main-area">
+        <header class="topbar">
+            <span>Insurance Policy Analysis</span>
+            <span class="local-pill"><span></span> LOCAL</span>
+        </header>
+        <section class="page-content">
+            @Body
+        </section>
+    </main>
+</div>
