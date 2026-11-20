@@ -1,0 +1,376 @@
+﻿@page "/documents"
+
+@using Microsoft.AspNetCore.Components.Forms
+@using InsuranceAnalyzer.Application.Documents
+@using InsuranceAnalyzer.Application.Policies
+@using InsuranceAnalyzer.Core.Entities
+
+@inject IPolicyService PolicyService
+@inject IPolicyDocumentService DocumentService
+
+<PageTitle>Documents | Insurance Analyzer</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">DOCUMENT REGISTER</p>
+        <h1>Policy documents</h1>
+        <p class="muted">
+            Upload and process insurance policy PDFs.
+        </p>
+    </div>
+</div>
+
+<div class="content-grid">
+
+    <section class="panel">
+
+        <div class="panel-heading">
+            <div>
+                <h2>Uploaded documents</h2>
+                <p class="muted">
+                    Policy documents stored locally on your PC.
+                </p>
+            </div>
+
+            <button class="secondary-button"
+                    @onclick="LoadDocuments">
+                ↻ Refresh
+            </button>
+        </div>
+
+        @if (isLoading)
+        {
+            <p class="muted">
+                Loading documents...
+            </p>
+        }
+        else if (documents.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-icon">▤</div>
+
+                <h3>No documents uploaded yet</h3>
+
+                <p>
+                    Select a policy and upload its PDF.
+                </p>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Policy</th>
+                            <th>Document</th>
+                            <th>Size</th>
+                            <th>Pages</th>
+                            <th>Status</th>
+                            <th>Uploaded</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var document in documents)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>
+                                        @document.PolicyNumber
+                                    </strong>
+
+                                    <div class="muted">
+                                        @document.PolicyholderName
+                                    </div>
+                                </td>
+
+                                <td>
+                                    @document.OriginalFileName
+                                </td>
+
+                                <td>
+                                    @FormatFileSize(
+                                        document.FileSizeBytes)
+                                </td>
+
+                                <td>
+                                    @(document.PageCount?.ToString()
+                                        ?? "—")
+                                </td>
+
+                                <td>
+                                    <span class="table-status">
+                                        @document.ProcessingStatus
+                                    </span>
+                                </td>
+
+                                <td>
+                                    @document.UploadedUtc
+                                    .ToLocalTime()
+                                    .ToString("dd MMM yyyy HH:mm")
+                                </td>
+
+                                <td>
+                                    <a href="@($"/documents/{document.Id}/file")"
+                                       target="_blank">
+                                        View
+                                    </a>
+
+                                    &nbsp;
+
+                                    <a href="@($"/documents/{document.Id}/file?download=true")">
+                                        Download
+                                    </a>
+
+                                    &nbsp;
+
+                                    <button class="secondary-button"
+                                            @onclick="() => DeleteDocument(document.Id)">
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+    </section>
+
+    <section class="panel form-panel">
+
+        <div class="panel-heading">
+            <div>
+                <h2>Upload policy PDF</h2>
+
+                <p class="muted">
+                    Associate a document with a registered policy.
+                </p>
+            </div>
+        </div>
+
+        <label>
+            Insurance policy <span>*</span>
+        </label>
+
+        <select class="form-control"
+                @bind="selectedPolicyId">
+
+            <option value="0">
+                Select a policy
+            </option>
+
+            @foreach (var policy in policies)
+            {
+                <option value="@policy.Id">
+                    @policy.PolicyNumber -
+                    @policy.PolicyholderName
+                </option>
+            }
+
+        </select>
+
+        <label>Policy PDF <span>*</span></label>
+
+        <InputFile OnChange="FileSelected"
+                   accept=".pdf,application/pdf"
+                   class="form-control" />
+
+        @if (selectedFile is not null)
+        {
+            <p class="muted">
+                Selected:
+                @selectedFile.Name
+                (@FormatFileSize(selectedFile.Size))
+            </p>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="message error">
+                @errorMessage
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="message success">
+                @successMessage
+            </div>
+        }
+
+        <button class="primary-button full-width"
+                disabled="@isUploading"
+                @onclick="Upload">
+
+            @(isUploading
+                ? "Uploading and extracting..."
+                : "Upload document")
+
+        </button>
+
+    </section>
+
+</div>
+
+@code {
+
+    private const long MaxUploadBytes =
+        25 * 1024 * 1024;
+
+    private List<InsurancePolicy> policies = [];
+
+    private List<PolicyDocumentDto> documents = [];
+
+    private int selectedPolicyId;
+
+    private IBrowserFile? selectedFile;
+
+    private bool isLoading = true;
+    private bool isUploading;
+
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPolicies();
+        await LoadDocuments();
+    }
+
+    private async Task LoadPolicies()
+    {
+        policies =
+            (await PolicyService.GetAllAsync())
+            .ToList();
+    }
+
+    private async Task LoadDocuments()
+    {
+        isLoading = true;
+
+        try
+        {
+            documents =
+                (await DocumentService.GetAllAsync())
+                .ToList();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void FileSelected(
+        InputFileChangeEventArgs args)
+    {
+        selectedFile = args.File;
+
+        errorMessage = null;
+        successMessage = null;
+    }
+
+    private async Task Upload()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (selectedPolicyId <= 0)
+        {
+            errorMessage =
+                "Please select an insurance policy.";
+
+            return;
+        }
+
+        if (selectedFile is null)
+        {
+            errorMessage =
+                "Please select a PDF document.";
+
+            return;
+        }
+
+        if (selectedFile.Size > MaxUploadBytes)
+        {
+            errorMessage =
+                "The PDF cannot exceed 25 MB.";
+
+            return;
+        }
+
+        isUploading = true;
+
+        try
+        {
+            await using var stream =
+                selectedFile.OpenReadStream(
+                    MaxUploadBytes);
+
+            var uploadedFileName =
+                selectedFile.Name;
+
+            await DocumentService.UploadAsync(
+                selectedPolicyId,
+                selectedFile.Name,
+                selectedFile.ContentType,
+                selectedFile.Size,
+                stream);
+
+            selectedFile = null;
+
+            successMessage =
+                $"{uploadedFileName} uploaded successfully.";
+
+            await LoadDocuments();
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                ex.GetBaseException().Message;
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private async Task DeleteDocument(
+        int documentId)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            await DocumentService.DeleteAsync(
+                documentId);
+
+            successMessage =
+                "Document deleted successfully.";
+
+            await LoadDocuments();
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"Unable to delete document: " +
+                ex.GetBaseException().Message;
+        }
+    }
+
+    private static string FormatFileSize(
+        long bytes)
+    {
+        if (bytes >= 1024 * 1024)
+            return $"{bytes / 1024d / 1024d:N2} MB";
+
+        if (bytes >= 1024)
+            return $"{bytes / 1024d:N1} KB";
+
+        return $"{bytes} bytes";
+    }
+}

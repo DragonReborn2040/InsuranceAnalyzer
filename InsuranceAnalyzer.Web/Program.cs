@@ -2,6 +2,8 @@ using InsuranceAnalyzer.Application.Policies;
 using InsuranceAnalyzer.Infrastructure.Persistence;
 using InsuranceAnalyzer.Infrastructure.Policies;
 using Microsoft.EntityFrameworkCore;
+using InsuranceAnalyzer.Application.Documents;
+using InsuranceAnalyzer.Infrastructure.Documents;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +17,18 @@ builder.Services.AddDbContextFactory<InsuranceAnalyzerDbContext>(options =>
     options.UseSqlServer(connectionString));
 
 builder.Services.AddScoped<IPolicyService, PolicyService>();
+builder.Services.Configure<DocumentStorageOptions>(
+    builder.Configuration.GetSection(
+        DocumentStorageOptions.SectionName));
+
+builder.Services.AddScoped<IDocumentStorageService,
+    LocalDocumentStorageService>();
+
+builder.Services.AddScoped<IPdfTextExtractor,
+    PdfPigTextExtractor>();
+
+builder.Services.AddScoped<IPolicyDocumentService,
+    PolicyDocumentService>();
 
 var app = builder.Build();
 
@@ -30,5 +44,30 @@ app.UseAntiforgery();
 
 app.MapRazorComponents<InsuranceAnalyzer.Web.Components.App>()
     .AddInteractiveServerRenderMode();
+
+app.MapGet(
+    "/documents/{id:int}/file",
+    async (
+        int id,
+        bool? download,
+        IPolicyDocumentService documentService,
+        CancellationToken cancellationToken) =>
+    {
+        var file =
+            await documentService.GetFileAsync(
+                id,
+                cancellationToken);
+
+        if (file is null)
+            return Results.NotFound();
+
+        return Results.File(
+            file.Content,
+            file.ContentType,
+            download == true
+                ? file.OriginalFileName
+                : null,
+            enableRangeProcessing: true);
+    });
 
 app.Run();

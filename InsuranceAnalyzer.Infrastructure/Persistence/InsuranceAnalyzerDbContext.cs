@@ -64,14 +64,34 @@ public sealed class InsuranceAnalyzerDbContext(DbContextOptions<InsuranceAnalyze
         {
             e.ToTable("PolicyDocuments");
             e.HasKey(x => x.Id);
-            e.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
-            e.Property(x => x.StoredFileName).HasMaxLength(260).IsRequired();
-            e.Property(x => x.StoragePath).HasMaxLength(1000).IsRequired();
-            e.Property(x => x.ContentType).HasMaxLength(100);
-            e.Property(x => x.Sha256).HasMaxLength(64);
-            e.Property(x => x.ProcessingStatus).HasMaxLength(40);
-            e.HasOne(x => x.InsurancePolicy).WithMany(x => x.Documents)
-                .HasForeignKey(x => x.InsurancePolicyId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.OriginalFileName)
+                .HasMaxLength(260)
+                .IsRequired();
+            e.Property(x => x.StoredFileName)
+                .HasMaxLength(260)
+                .IsRequired();
+            e.Property(x => x.StoragePath)
+                .HasMaxLength(1000)
+                .IsRequired();
+            e.Property(x => x.ContentType)
+                .HasMaxLength(100);
+            e.Property(x => x.Sha256)
+                .HasMaxLength(64);
+            e.Property(x => x.ProcessingStatus)
+                .HasMaxLength(40);
+            e.Property(x => x.ExtractedText);
+            e.Property(x => x.ProcessingError)
+                .HasMaxLength(2000);
+            e.HasIndex(x => x.Sha256);
+            e.HasIndex(x => new
+            {
+                x.InsurancePolicyId,
+                x.Sha256
+            });
+            e.HasOne(x => x.InsurancePolicy)
+                .WithMany(x => x.Documents)
+                .HasForeignKey(x => x.InsurancePolicyId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<PolicyBenefit>(e =>

@@ -399,6 +399,9 @@ namespace InsuranceAnalyzer.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("ExtractedText")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<long>("FileSizeBytes")
                         .HasColumnType("bigint");
 
@@ -409,6 +412,13 @@ namespace InsuranceAnalyzer.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(260)
                         .HasColumnType("nvarchar(260)");
+
+                    b.Property<int?>("PageCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProcessingError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("ProcessingStatus")
                         .IsRequired()
@@ -434,7 +444,9 @@ namespace InsuranceAnalyzer.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("InsurancePolicyId");
+                    b.HasIndex("Sha256");
+
+                    b.HasIndex("InsurancePolicyId", "Sha256");
 
                     b.ToTable("PolicyDocuments", (string)null);
                 });
