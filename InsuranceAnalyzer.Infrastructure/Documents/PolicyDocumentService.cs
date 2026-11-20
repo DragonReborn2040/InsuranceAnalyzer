@@ -67,14 +67,7 @@ public sealed class PolicyDocumentService(
             .SingleOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<PolicyDocument> UploadAsync(
-        int insurancePolicyId,
-        string originalFileName,
-        string contentType,
-        long fileSizeBytes,
-        Stream content,
-        CancellationToken cancellationToken = default)
-    {
+    
         public async Task<PolicyDocument> UploadAsync(
     int insurancePolicyId,
     string originalFileName,
