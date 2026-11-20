@@ -1,0 +1,33 @@
+﻿<div class="diagnostic-row">
+
+    <div class="diagnostic-left">
+
+        <span class="diagnostic-indicator @(Success ? "ok" : "attention")">
+            @(Success ? "✓" : "!")
+        </span>
+
+        <span>
+            @Label
+        </span>
+
+    </div>
+
+    <strong>
+        @Value
+    </strong>
+
+</div>
+
+
+@code {
+
+    [Parameter]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Value { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool Success { get; set; }
+
+}

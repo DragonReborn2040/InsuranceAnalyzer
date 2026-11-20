@@ -108,29 +108,29 @@
                                 </td>
 
                                 <td>
-                                    @document.UploadedUtc
-                                    .ToLocalTime()
-                                    .ToString("dd MMM yyyy HH:mm")
+                                    @document.UploadedUtc.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt")
                                 </td>
 
-                                <td>
+                                <td class="document-actions">
+
+                                    <a href="@($"/documents/{document.Id}")">
+                                        Details
+                                    </a>
+
                                     <a href="@($"/documents/{document.Id}/file")"
                                        target="_blank">
                                         View
                                     </a>
 
-                                    &nbsp;
-
                                     <a href="@($"/documents/{document.Id}/file?download=true")">
                                         Download
                                     </a>
 
-                                    &nbsp;
-
-                                    <button class="secondary-button"
+                                    <button class="table-action danger-action"
                                             @onclick="() => DeleteDocument(document.Id)">
                                         Delete
                                     </button>
+
                                 </td>
                             </tr>
                         }

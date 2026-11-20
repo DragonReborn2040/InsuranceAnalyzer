@@ -1,0 +1,450 @@
+﻿@page "/documents/{Id:int}"
+
+@using System.Text.RegularExpressions
+@using InsuranceAnalyzer.Application.Documents
+
+@inject IPolicyDocumentService DocumentService
+@inject NavigationManager Navigation
+
+<PageTitle>Document Details | Insurance Analyzer</PageTitle>
+
+@if (isLoading)
+{
+    <div class="document-page">
+        <p class="muted">Loading document...</p>
+    </div>
+}
+else if (document is null)
+{
+    <div class="document-page">
+
+        <button class="back-link"
+                @onclick="BackToDocuments">
+            ← Back to documents
+        </button>
+
+        <section class="panel">
+            <div class="empty-state">
+                <h2>Document not found</h2>
+
+                <p class="muted">
+                    The requested document does not exist
+                    or may have been deleted.
+                </p>
+            </div>
+        </section>
+
+    </div>
+}
+else
+{
+    <div class="document-page">
+
+        <button class="back-link"
+                @onclick="BackToDocuments">
+            ← Back to documents
+        </button>
+
+        <div class="page-heading">
+
+            <div>
+                <p class="eyebrow">
+                    DOCUMENT DETAILS
+                </p>
+
+                <h1>@document.OriginalFileName</h1>
+
+                <p class="muted">
+                    Review the uploaded policy document
+                    and extracted text.
+                </p>
+            </div>
+
+            <div class="header-actions">
+
+                <a class="secondary-button action-link"
+                   href="@($"/documents/{document.Id}/file")"
+                   target="_blank">
+                    View PDF
+                </a>
+
+                <a class="primary-button action-link"
+                   href="@($"/documents/{document.Id}/file?download=true")">
+                    Download
+                </a>
+
+            </div>
+
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(document.ProcessingError))
+        {
+            <div class="message error diagnostic-error">
+                <strong>Document processing error</strong>
+
+                <div>
+                    @document.ProcessingError
+                </div>
+            </div>
+        }
+
+        <div class="details-grid">
+
+            <section class="panel">
+
+                <div class="panel-heading">
+                    <div>
+                        <h2>Document information</h2>
+
+                        <p class="muted">
+                            Uploaded file and associated policy.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="metadata-grid">
+
+                    <div class="metadata-item">
+                        <span class="metadata-label">
+                            Policy number
+                        </span>
+
+                        <strong>
+                            @document.PolicyNumber
+                        </strong>
+                    </div>
+
+                    <div class="metadata-item">
+                        <span class="metadata-label">
+                            Policyholder
+                        </span>
+
+                        <strong>
+                            @document.PolicyholderName
+                        </strong>
+                    </div>
+
+                    <div class="metadata-item">
+                        <span class="metadata-label">
+                            Original filename
+                        </span>
+
+                        <strong>
+                            @document.OriginalFileName
+                        </strong>
+                    </div>
+
+                    <div class="metadata-item">
+                        <span class="metadata-label">
+                            File size
+                        </span>
+
+                        <strong>
+                            @FormatFileSize(
+                                document.FileSizeBytes)
+                        </strong>
+                    </div>
+
+                    <div class="metadata-item">
+                        <span class="metadata-label">
+                            Uploaded
+                        </span>
+
+                        <strong>
+                            @document.UploadedUtc.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt")
+                        </strong>
+                    </div>
+
+                    <div class="metadata-item">
+                        <span class="metadata-label">
+                            Processing status
+                        </span>
+
+                        <span class="@GetStatusClass(
+                                         document.ProcessingStatus)">
+                            @document.ProcessingStatus
+                        </span>
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <section class="panel">
+
+                <div class="panel-heading">
+                    <div>
+                        <h2>Extraction diagnostics</h2>
+
+                        <p class="muted">
+                            Quality indicators for subsequent analysis.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="diagnostics-list">
+
+                    <DiagnosticRow Label="Text extraction"
+                                   Value="@ExtractionResult"
+                                   Success="@ExtractionSucceeded" />
+
+                    <DiagnosticRow Label="Pages detected"
+                                   Value="@PagesDetected"
+                                   Success="@(document.PageCount > 0)" />
+
+                    <DiagnosticRow Label="Characters extracted"
+                                   Value="@CharacterCount.ToString("N0")"
+                                   Success="@(CharacterCount > 0)" />
+
+                    <DiagnosticRow Label="OCR required"
+                                   Value="@(RequiresOcr ? "Yes" : "No")"
+                                   Success="@(!RequiresOcr)" />
+
+                    <DiagnosticRow Label="Processing errors"
+                                   Value="@(HasProcessingError ? "Yes" : "None")"
+                                   Success="@(!HasProcessingError)" />
+
+                </div>
+
+            </section>
+
+        </div>
+
+
+        <section class="panel extracted-text-panel">
+
+            <div class="panel-heading extracted-heading">
+
+                <div>
+                    <h2>Extracted text</h2>
+
+                    <p class="muted">
+                        Text extracted from the PDF,
+                        organized by document page.
+                    </p>
+                </div>
+
+                <div class="text-summary">
+                    @(ExtractedPages.Count) page(s)
+                    ·
+                    @CharacterCount.ToString("N0") characters
+                </div>
+
+            </div>
+
+            @if (ExtractedPages.Count == 0)
+            {
+                <div class="empty-state">
+
+                    <div class="empty-icon">
+                        📄
+                    </div>
+
+                    <h3>No extractable text</h3>
+
+                    @if (RequiresOcr)
+                    {
+                        <p class="muted">
+                            This document appears to require OCR.
+                            OCR support will be added in a later phase.
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="muted">
+                            No text was extracted from this PDF.
+                        </p>
+                    }
+
+                </div>
+            }
+            else
+            {
+                <div class="page-list">
+
+                    @foreach (var extractedItem in ExtractedPages)
+                    {
+                        <article class="extracted-page">
+
+                            <div class="extracted-page-header">
+                                <strong>@($"Page {extractedItem.PageNumber}")</strong>
+
+                                <span>
+                                    @(extractedItem.Text.Length.ToString("N0"))
+                                    characters
+                                </span>
+                            </div>
+
+                            <pre class="extracted-page-text">@(extractedItem.Text)</pre>
+
+                        </article>
+                    }
+
+                </div>
+            }
+
+        </section>
+
+    </div>
+}
+
+
+@code {
+
+    [Parameter]
+    public int Id { get; set; }
+
+    private PolicyDocumentDto? document;
+
+    private bool isLoading = true;
+
+    private List<ExtractedPage> ExtractedPages { get; set; } = [];
+
+
+    protected override async Task OnParametersSetAsync()
+    {
+        isLoading = true;
+
+        try
+        {
+            document =
+                await DocumentService.GetByIdAsync(Id);
+
+            ExtractedPages =
+                ParseExtractedPages(
+                    document?.ExtractedText);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+
+    private int CharacterCount => ExtractedPages.Sum(x => x.Text.Count(c => !char.IsWhiteSpace(c)));
+
+
+    private bool HasProcessingError =>
+        !string.IsNullOrWhiteSpace(
+            document?.ProcessingError);
+
+
+    private bool RequiresOcr =>
+    string.Equals(
+        document?.ProcessingStatus,
+        "NeedsOcr",
+        StringComparison.OrdinalIgnoreCase)
+    ||
+    (
+        CharacterCount == 0 &&
+        document?.PageCount > 0
+    );
+
+
+    private bool ExtractionSucceeded => string.Equals(document?.ProcessingStatus,"Completed",
+        StringComparison.OrdinalIgnoreCase) && CharacterCount > 0;
+
+
+    private string ExtractionResult =>
+        ExtractionSucceeded
+            ? "Successful"
+            : RequiresOcr
+                ? "No usable text"
+                : document?.ProcessingStatus ?? "Unknown";
+
+
+    private string PagesDetected =>
+        document?.PageCount?.ToString() ?? "Unknown";
+
+
+    private void BackToDocuments()
+    {
+        Navigation.NavigateTo("/documents");
+    }
+
+
+    private static List<ExtractedPage> ParseExtractedPages(
+        string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return [];
+
+        /*
+         * PdfPigTextExtractor stores boundaries as:
+         *
+         * --- Page 1 ---
+         * content...
+         *
+         * --- Page 2 ---
+         * content...
+         */
+
+        const string pattern =
+            @"--- Page (?<page>\d+) ---\s*(?<text>.*?)(?=--- Page \d+ ---|\z)";
+
+        var matches =
+            Regex.Matches(
+                text,
+                pattern,
+                RegexOptions.Singleline);
+
+        if (matches.Count == 0)
+        {
+            return
+            [
+                new ExtractedPage(
+                    1,
+                    text.Trim())
+            ];
+        }
+
+        return matches
+            .Select(match =>
+                new ExtractedPage(
+                    int.Parse(
+                        match.Groups["page"].Value),
+                    match.Groups["text"]
+                        .Value
+                        .Trim()))
+            .ToList();
+    }
+
+
+    private static string FormatFileSize(
+        long bytes)
+    {
+        if (bytes >= 1024L * 1024L)
+            return $"{bytes / 1024d / 1024d:N2} MB";
+
+        if (bytes >= 1024L)
+            return $"{bytes / 1024d:N1} KB";
+
+        return $"{bytes:N0} bytes";
+    }
+
+
+    private static string GetStatusClass(
+        string status)
+    {
+        return status.ToLowerInvariant() switch
+        {
+            "completed" =>
+                "diagnostic-status success",
+
+            "needsocr" =>
+                "diagnostic-status warning",
+
+            "failed" =>
+                "diagnostic-status failure",
+
+            _ =>
+                "diagnostic-status neutral"
+        };
+    }
+
+
+    private sealed record ExtractedPage(
+        int PageNumber,
+        string Text);
+}
