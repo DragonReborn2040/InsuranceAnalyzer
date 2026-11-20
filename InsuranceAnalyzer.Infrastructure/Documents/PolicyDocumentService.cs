@@ -1,9 +1,10 @@
-﻿using System.Security.Cryptography;
-using InsuranceAnalyzer.Application.Documents;
+﻿using InsuranceAnalyzer.Application.Documents;
 using InsuranceAnalyzer.Core.Entities;
 using InsuranceAnalyzer.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
 
 namespace InsuranceAnalyzer.Infrastructure.Documents;
 
@@ -11,7 +12,8 @@ public sealed class PolicyDocumentService(
     IDbContextFactory<InsuranceAnalyzerDbContext> contextFactory,
     IDocumentStorageService storage,
     IPdfTextExtractor pdfTextExtractor,
-    IOptions<DocumentStorageOptions> options)
+    IOptions<DocumentStorageOptions> options,
+    ILogger<PolicyDocumentService> logger)
     : IPolicyDocumentService
 {
     public async Task<IReadOnlyList<PolicyDocumentDto>> GetAllAsync(
@@ -73,31 +75,50 @@ public sealed class PolicyDocumentService(
         Stream content,
         CancellationToken cancellationToken = default)
     {
+        public async Task<PolicyDocument> UploadAsync(
+    int insurancePolicyId,
+    string originalFileName,
+    string contentType,
+    long fileSizeBytes,
+    Stream content,
+    CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation(
+            "Upload started. PolicyId={PolicyId}, File={File}, Size={Size}, ContentType={ContentType}",
+            insurancePolicyId,
+            originalFileName,
+            fileSizeBytes,
+            contentType);
+
         if (fileSizeBytes <= 0)
-            throw new InvalidOperationException(
-                "The selected file is empty.");
+            throw new InvalidOperationException("The selected file is empty.");
 
         if (fileSizeBytes > options.Value.MaxFileSizeBytes)
             throw new InvalidOperationException(
-                $"Maximum PDF size is " +
-                $"{options.Value.MaxFileSizeBytes / 1024 / 1024} MB.");
+                $"Maximum PDF size is {options.Value.MaxFileSizeBytes / 1024 / 1024} MB.");
 
-        if (!string.Equals(
-                Path.GetExtension(originalFileName),
-                ".pdf",
-                StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                "Only PDF files are supported.");
-        }
+        logger.LogInformation("File size validation passed.");
 
         await using var buffer = new MemoryStream();
 
-        await content.CopyToAsync(
-            buffer,
-            cancellationToken);
+        logger.LogInformation("Starting browser stream copy.");
+
+        await content.CopyToAsync(buffer, cancellationToken);
+
+        logger.LogInformation(
+            "Browser stream copy completed. Bytes={Length}",
+            buffer.Length);
 
         var bytes = buffer.ToArray();
+
+        logger.LogInformation("Converted upload stream to byte array.");
+
+        var hash = Convert.ToHexString(
+            SHA256.HashData(bytes));
+
+        logger.LogInformation(
+            "SHA256 completed. Hash={Hash}",
+            hash);
 
         // Verify actual PDF signature instead of trusting extension/MIME type.
         if (bytes.Length < 5 ||
@@ -111,8 +132,8 @@ public sealed class PolicyDocumentService(
                 "The selected file is not a valid PDF.");
         }
 
-        var hash = Convert.ToHexString(
-            SHA256.HashData(bytes));
+        //var hash = Convert.ToHexString(
+           // SHA256.HashData(bytes));
 
         await using var db =
             await contextFactory.CreateDbContextAsync(

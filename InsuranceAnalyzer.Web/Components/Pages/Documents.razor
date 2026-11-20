@@ -7,6 +7,7 @@
 
 @inject IPolicyService PolicyService
 @inject IPolicyDocumentService DocumentService
+@inject ILogger<Documents> Logger
 
 <PageTitle>Documents | Insurance Analyzer</PageTitle>
 
@@ -275,6 +276,11 @@
 
     private async Task Upload()
     {
+        Logger.LogInformation(
+            "Upload button clicked. PolicyId={PolicyId}, HasFile={HasFile}",
+            selectedPolicyId,
+            selectedFile is not null);
+
         errorMessage = null;
         successMessage = null;
 
@@ -304,14 +310,27 @@
 
         isUploading = true;
 
+        Logger.LogInformation(
+            "Starting upload process. PolicyId={PolicyId}, File={File}, Size={Size}",
+            selectedPolicyId,
+            selectedFile.Name,
+            selectedFile.Size);
+
         try
         {
+            Logger.LogInformation(
+                "Opening browser file stream. File={File}, Size={Size}",
+                selectedFile.Name,
+                selectedFile.Size);
+
             await using var stream =
-                selectedFile.OpenReadStream(
-                    MaxUploadBytes);
+                selectedFile.OpenReadStream(MaxUploadBytes);
 
             var uploadedFileName =
                 selectedFile.Name;
+
+            Logger.LogInformation(
+                "Browser file stream opened.");
 
             await DocumentService.UploadAsync(
                 selectedPolicyId,
@@ -319,6 +338,9 @@
                 selectedFile.ContentType,
                 selectedFile.Size,
                 stream);
+
+            Logger.LogInformation(
+                "DocumentService.UploadAsync completed.");
 
             selectedFile = null;
 
@@ -329,6 +351,11 @@
         }
         catch (Exception ex)
         {
+            Logger.LogError(
+                ex,
+                "Upload failed for PolicyId={PolicyId}",
+                selectedPolicyId);
+
             errorMessage =
                 ex.GetBaseException().Message;
         }
