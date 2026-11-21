@@ -4,6 +4,8 @@ using InsuranceAnalyzer.Infrastructure.Policies;
 using Microsoft.EntityFrameworkCore;
 using InsuranceAnalyzer.Application.Documents;
 using InsuranceAnalyzer.Infrastructure.Documents;
+using InsuranceAnalyzer.Application.Documents.Extraction;
+using InsuranceAnalyzer.Infrastructure.Documents.Extraction;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,6 +31,9 @@ builder.Services.AddScoped<IPdfTextExtractor,
 
 builder.Services.AddScoped<IPolicyDocumentService,
     PolicyDocumentService>();
+builder.Services.AddScoped<IPdfPageOcrService, PaddleOcrPageService>();
+
+builder.Services.AddScoped<HybridPdfTextExtractionService>();
 
 var app = builder.Build();
 

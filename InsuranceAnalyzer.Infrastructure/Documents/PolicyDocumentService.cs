@@ -1,5 +1,6 @@
 ﻿using InsuranceAnalyzer.Application.Documents;
 using InsuranceAnalyzer.Core.Entities;
+using InsuranceAnalyzer.Infrastructure.Documents.Extraction;
 using InsuranceAnalyzer.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -11,7 +12,7 @@ namespace InsuranceAnalyzer.Infrastructure.Documents;
 public sealed class PolicyDocumentService(
     IDbContextFactory<InsuranceAnalyzerDbContext> contextFactory,
     IDocumentStorageService storage,
-    IPdfTextExtractor pdfTextExtractor,
+    HybridPdfTextExtractionService pdfTextExtractor,
     IOptions<DocumentStorageOptions> options,
     ILogger<PolicyDocumentService> logger)
     : IPolicyDocumentService
@@ -196,15 +197,23 @@ public sealed class PolicyDocumentService(
                     cancellationToken);
 
             document.ExtractedText =
-                extraction.Text;
+                extraction.FullText;
 
             document.PageCount =
                 extraction.PageCount;
 
-            document.ProcessingStatus =
-                extraction.HasExtractableText
-                    ? "Completed"
-                    : "NeedsOcr";
+            if (!extraction.HasText)
+            {
+                document.ProcessingStatus = "Failed";
+            }
+            else if (extraction.UsedOcr)
+            {
+                document.ProcessingStatus = "CompletedHybrid";
+            }
+            else
+            {
+                document.ProcessingStatus = "Completed";
+            }
 
             document.ProcessingError = null;
         }
