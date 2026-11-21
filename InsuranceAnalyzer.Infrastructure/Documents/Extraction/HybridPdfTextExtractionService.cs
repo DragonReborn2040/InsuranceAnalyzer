@@ -150,10 +150,8 @@ public sealed class HybridPdfTextExtractionService
 
     private static string NormalizeText(string? text)
     {
-        if (text?.Count(char.IsLetterOrDigit) < 10)
-        {
+        if (string.IsNullOrWhiteSpace(text))
             return string.Empty;
-        }
 
         return text.Replace("\0", string.Empty).Trim();
     }

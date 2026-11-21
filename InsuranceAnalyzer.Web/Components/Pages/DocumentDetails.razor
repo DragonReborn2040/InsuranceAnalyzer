@@ -201,6 +201,10 @@ else
                                    Value="@(RequiresOcr ? "Yes" : "No")"
                                    Success="@(!RequiresOcr)" />
 
+                    <DiagnosticRow Label="OCR used"
+                                   Value="@(OcrUsed ? "Yes" : "No")"
+                                   Success="@ExtractionSucceeded" />
+
                     <DiagnosticRow Label="Processing errors"
                                    Value="@(HasProcessingError ? "Yes" : "None")"
                                    Success="@(!HasProcessingError)" />
@@ -243,20 +247,6 @@ else
 
                     <h3>No extractable text</h3>
 
-                    @if (RequiresOcr)
-                    {
-                        <p class="muted">
-                            This document appears to require OCR.
-                            OCR support will be added in a later phase.
-                        </p>
-                    }
-                    else
-                    {
-                        <p class="muted">
-                            No text was extracted from this PDF.
-                        </p>
-                    }
-
                 </div>
             }
             else
@@ -270,6 +260,9 @@ else
                             <div class="extracted-page-header">
                                 <strong>@($"Page {extractedItem.PageNumber}")</strong>
 
+                                <span class="muted">
+                                    @extractedItem.Source
+                                </span>
                                 <span>
                                     @(extractedItem.Text.Length.ToString("N0"))
                                     characters
@@ -322,7 +315,7 @@ else
     }
 
 
-    private int CharacterCount => ExtractedPages.Sum(x => x.Text.Count(c => !char.IsWhiteSpace(c)));
+    private int CharacterCount => ExtractedPages.Sum(x => x.Text.Length);
 
 
     private bool HasProcessingError =>
@@ -341,9 +334,27 @@ else
         document?.PageCount > 0
     );
 
+    private bool OcrUsed =>
+    ExtractedPages.Any(page =>
+        string.Equals(
+            page.Source,
+            "PaddleOcr",
+            StringComparison.OrdinalIgnoreCase));
 
-    private bool ExtractionSucceeded => string.Equals(document?.ProcessingStatus,"Completed",
-        StringComparison.OrdinalIgnoreCase) && CharacterCount > 0;
+
+    private bool ExtractionSucceeded =>
+    (
+        string.Equals(
+            document?.ProcessingStatus,
+            "Completed",
+            StringComparison.OrdinalIgnoreCase)
+        ||
+        string.Equals(
+            document?.ProcessingStatus,
+            "CompletedHybrid",
+            StringComparison.OrdinalIgnoreCase)
+    )
+    && CharacterCount > 0;
 
 
     private string ExtractionResult =>
@@ -364,51 +375,66 @@ else
     }
 
 
+    
     private static List<ExtractedPage> ParseExtractedPages(
         string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
             return [];
 
-        /*
-         * PdfPigTextExtractor stores boundaries as:
-         *
-         * --- Page 1 ---
-         * content...
-         *
-         * --- Page 2 ---
-         * content...
-         */
+        // Phase 2C hybrid extraction format:
+        // ===== PAGE 1 [PaddleOcr] =====
+        // ===== PAGE 2 [PdfPig] =====
 
-        const string pattern =
-            @"--- Page (?<page>\d+) ---\s*(?<text>.*?)(?=--- Page \d+ ---|\z)";
+        const string hybridPattern =
+            @"^===== PAGE (?<page>\d+) \[(?<source>[^\]]+)\] =====[ \t]*\r?\n(?<text>.*?)(?=^===== PAGE \d+ \[[^\]]+\] =====|\z)";
 
-        var matches =
-            Regex.Matches(
-                text,
-                pattern,
-                RegexOptions.Singleline);
+        var hybridMatches = Regex.Matches(
+            text,
+            hybridPattern,
+            RegexOptions.Multiline | RegexOptions.Singleline);
 
-        if (matches.Count == 0)
+        if (hybridMatches.Count > 0)
         {
-            return
-            [
-                new ExtractedPage(
-                    1,
-                    text.Trim())
-            ];
+            return hybridMatches
+                .Select(match => new ExtractedPage(
+                    int.Parse(match.Groups["page"].Value),
+                    match.Groups["text"].Value.Trim(),
+                    match.Groups["source"].Value))
+                .OrderBy(page => page.PageNumber)
+                .ToList();
         }
 
-        return matches
-            .Select(match =>
-                new ExtractedPage(
-                    int.Parse(
-                        match.Groups["page"].Value),
-                    match.Groups["text"]
-                        .Value
-                        .Trim()))
-            .ToList();
+        // Backward compatibility with Phase 2B:
+        // --- Page 1 ---
+        // --- Page 2 ---
+
+        const string legacyPattern =
+            @"--- Page (?<page>\d+) ---\s*(?<text>.*?)(?=--- Page \d+ ---|\z)";
+
+        var legacyMatches = Regex.Matches(
+            text,
+            legacyPattern,
+            RegexOptions.Singleline);
+
+        if (legacyMatches.Count > 0)
+        {
+            return legacyMatches
+                .Select(match => new ExtractedPage(
+                    int.Parse(match.Groups["page"].Value),
+                    match.Groups["text"].Value.Trim(),
+                    "PdfPig"))
+                .OrderBy(page => page.PageNumber)
+                .ToList();
+        }
+
+        // Fallback for older documents without page markers.
+        return
+        [
+            new ExtractedPage(1, text.Trim(), "Unknown")
+        ];
     }
+
 
 
     private static string FormatFileSize(
@@ -424,12 +450,11 @@ else
     }
 
 
-    private static string GetStatusClass(
-        string status)
+    private static string GetStatusClass(string status)
     {
         return status.ToLowerInvariant() switch
         {
-            "completed" =>
+            "completed" or "completedhybrid" =>
                 "diagnostic-status success",
 
             "needsocr" =>
@@ -446,5 +471,6 @@ else
 
     private sealed record ExtractedPage(
         int PageNumber,
-        string Text);
+        string Text,
+        string Source);
 }
