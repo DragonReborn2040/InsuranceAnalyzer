@@ -197,10 +197,6 @@ else
                                    Value="@CharacterCount.ToString("N0")"
                                    Success="@(CharacterCount > 0)" />
 
-                    <DiagnosticRow Label="OCR required"
-                                   Value="@(RequiresOcr ? "Yes" : "No")"
-                                   Success="@(!RequiresOcr)" />
-
                     <DiagnosticRow Label="OCR used"
                                    Value="@(OcrUsed ? "Yes" : "No")"
                                    Success="@ExtractionSucceeded" />
