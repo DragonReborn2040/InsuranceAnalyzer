@@ -26,9 +26,6 @@ builder.Services.Configure<DocumentStorageOptions>(
 builder.Services.AddScoped<IDocumentStorageService,
     LocalDocumentStorageService>();
 
-builder.Services.AddScoped<IPdfTextExtractor,
-    PdfPigTextExtractor>();
-
 builder.Services.AddScoped<IPolicyDocumentService,
     PolicyDocumentService>();
 builder.Services.AddScoped<IPdfPageOcrService, PaddleOcrPageService>();

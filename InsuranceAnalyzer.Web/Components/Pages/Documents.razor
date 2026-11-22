@@ -202,6 +202,12 @@
                 @successMessage
             </div>
         }
+        @if (!string.IsNullOrWhiteSpace(warningMessage))
+        {
+            <div class="message warning">
+                @warningMessage
+            </div>
+        }
 
         <button class="primary-button full-width"
                 disabled="@isUploading"
@@ -235,6 +241,7 @@
 
     private string? errorMessage;
     private string? successMessage;
+    private string? warningMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -271,6 +278,7 @@
         selectedFile = args.File;
 
         errorMessage = null;
+        warningMessage = null;
         successMessage = null;
     }
 
@@ -283,6 +291,7 @@
 
         errorMessage = null;
         successMessage = null;
+        warningMessage = null;
 
         if (selectedPolicyId <= 0)
         {
@@ -332,7 +341,8 @@
             Logger.LogInformation(
                 "Browser file stream opened.");
 
-            await DocumentService.UploadAsync(
+            
+            var uploadedDocument = await DocumentService.UploadAsync(
                 selectedPolicyId,
                 selectedFile.Name,
                 selectedFile.ContentType,
@@ -340,12 +350,43 @@
                 stream);
 
             Logger.LogInformation(
-                "DocumentService.UploadAsync completed.");
+                "Document upload completed. DocumentId={DocumentId}, Status={Status}",
+                uploadedDocument.Id,
+                uploadedDocument.ProcessingStatus);
 
             selectedFile = null;
 
-            successMessage =
-                $"{uploadedFileName} uploaded successfully.";
+            switch (uploadedDocument.ProcessingStatus)
+            {
+                case "Completed":
+                    successMessage =
+                        $"{uploadedFileName} uploaded and text extracted successfully using PdfPig.";
+                    break;
+
+                case "CompletedHybrid":
+                    successMessage =
+                        $"{uploadedFileName} uploaded and text extracted successfully using hybrid PDF/OCR extraction.";
+                    break;
+
+                case "PartiallyCompleted":
+                    warningMessage =
+                        $"{uploadedFileName} was uploaded, but some pages could not be extracted. Review the document details.";
+                    break;
+
+                case "Failed":
+                    errorMessage =
+                        $"{uploadedFileName} was uploaded, but text extraction failed. " +
+                        (string.IsNullOrWhiteSpace(uploadedDocument.ProcessingError)
+                            ? "Please review the document details."
+                            : uploadedDocument.ProcessingError);
+                    break;
+
+                default:
+                    warningMessage =
+                        $"{uploadedFileName} was uploaded with processing status: " +
+                        uploadedDocument.ProcessingStatus;
+                    break;
+            }
 
             await LoadDocuments();
         }

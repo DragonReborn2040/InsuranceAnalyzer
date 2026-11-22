@@ -138,14 +138,11 @@ public sealed class HybridPdfTextExtractionService
 
     private static bool IsMeaningfulText(string? text)
     {
-        if (text?.Count(char.IsLetterOrDigit) < 10)
-        {
+        if (string.IsNullOrWhiteSpace(text))
             return false;
-        }
 
-        var meaningfulCharacters = text.Count(char.IsLetterOrDigit);
-
-        return meaningfulCharacters >= MinimumMeaningfulCharacters;
+        return text.Count(char.IsLetterOrDigit)
+            >= MinimumMeaningfulCharacters;
     }
 
     private static string NormalizeText(string? text)

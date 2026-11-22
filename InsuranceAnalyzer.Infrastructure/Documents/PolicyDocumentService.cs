@@ -206,6 +206,10 @@ public sealed class PolicyDocumentService(
             {
                 document.ProcessingStatus = "Failed";
             }
+            else if (extraction.EmptyPageCount > 0)
+            {
+                document.ProcessingStatus = "PartiallyCompleted";
+            }
             else if (extraction.UsedOcr)
             {
                 document.ProcessingStatus = "CompletedHybrid";
