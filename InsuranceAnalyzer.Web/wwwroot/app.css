@@ -396,6 +396,11 @@ td {
         background: #eaf7ef;
         color: #20734c
     }
+    .message.warning {
+        background: #fff7ed;
+        color: #9a3412;
+        border: 1px solid #fed7aa;
+    }
 
 .validation-message, .validation-errors {
     font-size: 11px;
