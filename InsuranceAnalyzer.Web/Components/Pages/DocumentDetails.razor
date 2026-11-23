@@ -187,7 +187,7 @@ else
 
                     <DiagnosticRow Label="Text extraction"
                                    Value="@ExtractionResult"
-                                   Success="@ExtractionSucceeded" />
+                                   Success="@ExtractionHasUsableText" />
 
                     <DiagnosticRow Label="Pages detected"
                                    Value="@PagesDetected"
@@ -311,7 +311,12 @@ else
     }
 
 
-    private int CharacterCount => ExtractedPages.Sum(x => x.Text.Length);
+    private int CharacterCount =>
+    ExtractedPages
+        .Where(page =>
+            page.Source != "None" &&
+            page.Text != "[No text extracted]")
+        .Sum(page => page.Text.Length);
 
 
     private bool HasProcessingError =>
@@ -354,12 +359,24 @@ else
 
 
     private string ExtractionResult =>
-        ExtractionSucceeded
-            ? "Successful"
-            : RequiresOcr
-                ? "No usable text"
-                : document?.ProcessingStatus ?? "Unknown";
+    document?.ProcessingStatus switch
+    {
+        "Completed" or "CompletedHybrid"
+            when CharacterCount > 0 => "Successful",
 
+        "PartiallyCompleted" => "Partially successful",
+
+        "Failed" => "Failed",
+
+        _ => document?.ProcessingStatus ?? "Unknown"
+    };
+
+    private bool ExtractionHasUsableText =>
+    CharacterCount > 0 &&
+    document?.ProcessingStatus is
+        "Completed" or
+        "CompletedHybrid" or
+        "PartiallyCompleted";
 
     private string PagesDetected =>
         document?.PageCount?.ToString() ?? "Unknown";
@@ -453,7 +470,7 @@ else
             "completed" or "completedhybrid" =>
                 "diagnostic-status success",
 
-            "needsocr" =>
+            "partiallycompleted" or "needsocr" =>
                 "diagnostic-status warning",
 
             "failed" =>
