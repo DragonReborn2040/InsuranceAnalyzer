@@ -1,308 +1,178 @@
 ﻿@page "/documents/{Id:int}"
-
-@using System.Text.RegularExpressions
 @using InsuranceAnalyzer.Application.Documents
-
 @inject IPolicyDocumentService DocumentService
 @inject NavigationManager Navigation
 
 <PageTitle>Document Details | Insurance Analyzer</PageTitle>
 
-@if (isLoading)
-{
-    <div class="document-page">
+<div class="document-page">
+    <button class="back-link" @onclick="BackToDocuments">← Back to documents</button>
+
+    @if (isLoading)
+    {
         <p class="muted">Loading document...</p>
-    </div>
-}
-else if (document is null)
-{
-    <div class="document-page">
-
-        <button class="back-link"
-                @onclick="BackToDocuments">
-            ← Back to documents
-        </button>
-
-        <section class="panel">
-            <div class="empty-state">
-                <h2>Document not found</h2>
-
-                <p class="muted">
-                    The requested document does not exist
-                    or may have been deleted.
-                </p>
-            </div>
-        </section>
-
-    </div>
-}
-else
-{
-    <div class="document-page">
-
-        <button class="back-link"
-                @onclick="BackToDocuments">
-            ← Back to documents
-        </button>
-
+    }
+    else if (loadError is not null)
+    {
+        <div class="message error diagnostic-error" role="alert">@loadError</div>
+    }
+    else if (document is null)
+    {
+        <section class="panel"><div class="empty-state">
+            <h2>Document not found</h2>
+            <p class="muted">The requested document does not exist or may have been deleted.</p>
+        </div></section>
+    }
+    else if (details is not null)
+    {
         <div class="page-heading">
-
             <div>
-                <p class="eyebrow">
-                    DOCUMENT DETAILS
-                </p>
-
+                <p class="eyebrow">DOCUMENT DETAILS</p>
                 <h1>@document.OriginalFileName</h1>
-
-                <p class="muted">
-                    Review the uploaded policy document
-                    and extracted text.
-                </p>
+                <p class="muted">Review the uploaded policy document and extracted text.</p>
             </div>
-
             <div class="header-actions">
-
-                <a class="secondary-button action-link"
-                   href="@($"/documents/{document.Id}/file")"
-                   target="_blank">
-                    View PDF
-                </a>
-
-                <a class="primary-button action-link"
-                   href="@($"/documents/{document.Id}/file?download=true")">
-                    Download
-                </a>
-
+                <a class="secondary-button action-link" href="@($"/documents/{document.Id}/file")" target="_blank" rel="noopener noreferrer">View PDF</a>
+                <a class="primary-button action-link" href="@($"/documents/{document.Id}/file?download=true")">Download</a>
             </div>
-
         </div>
 
         @if (!string.IsNullOrWhiteSpace(document.ProcessingError))
         {
-            <div class="message error diagnostic-error">
+            <div class="message error diagnostic-error" role="alert">
                 <strong>Document processing error</strong>
+                <div>@document.ProcessingError</div>
+            </div>
+        }
 
-                <div>
-                    @document.ProcessingError
-                </div>
+        @if (!details.UsesPersistedDiagnostics)
+        {
+            <div class="message diagnostic-error" role="status">
+                <strong>Legacy diagnostics</strong>
+                Page-level diagnostics were not stored for this document. Text and source labels below are inferred from the original extraction output; OCR attempts and quality scores are unavailable.
             </div>
         }
 
         <div class="details-grid">
-
             <section class="panel">
-
-                <div class="panel-heading">
-                    <div>
-                        <h2>Document information</h2>
-
-                        <p class="muted">
-                            Uploaded file and associated policy.
-                        </p>
-                    </div>
-                </div>
-
+                <div class="panel-heading"><div><h2>Document information</h2><p class="muted">Uploaded file and associated policy.</p></div></div>
                 <div class="metadata-grid">
-
-                    <div class="metadata-item">
-                        <span class="metadata-label">
-                            Policy number
-                        </span>
-
-                        <strong>
-                            @document.PolicyNumber
-                        </strong>
-                    </div>
-
-                    <div class="metadata-item">
-                        <span class="metadata-label">
-                            Policyholder
-                        </span>
-
-                        <strong>
-                            @document.PolicyholderName
-                        </strong>
-                    </div>
-
-                    <div class="metadata-item">
-                        <span class="metadata-label">
-                            Original filename
-                        </span>
-
-                        <strong>
-                            @document.OriginalFileName
-                        </strong>
-                    </div>
-
-                    <div class="metadata-item">
-                        <span class="metadata-label">
-                            File size
-                        </span>
-
-                        <strong>
-                            @FormatFileSize(
-                                document.FileSizeBytes)
-                        </strong>
-                    </div>
-
-                    <div class="metadata-item">
-                        <span class="metadata-label">
-                            Uploaded
-                        </span>
-
-                        <strong>
-                            @document.UploadedUtc.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt")
-                        </strong>
-                    </div>
-
-                    <div class="metadata-item">
-                        <span class="metadata-label">
-                            Processing status
-                        </span>
-
-                        <span class="@GetStatusClass(
-                                         document.ProcessingStatus)">
-                            @document.ProcessingStatus
-                        </span>
-                    </div>
-
+                    <div class="metadata-item"><span class="metadata-label">Policy number</span><strong>@document.PolicyNumber</strong></div>
+                    <div class="metadata-item"><span class="metadata-label">Policyholder</span><strong>@document.PolicyholderName</strong></div>
+                    <div class="metadata-item"><span class="metadata-label">Original filename</span><strong>@document.OriginalFileName</strong></div>
+                    <div class="metadata-item"><span class="metadata-label">File size</span><strong>@FormatFileSize(document.FileSizeBytes)</strong></div>
+                    <div class="metadata-item"><span class="metadata-label">Uploaded</span><strong>@document.UploadedUtc.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt")</strong></div>
+                    <div class="metadata-item"><span class="metadata-label">Processing status</span><span class="@GetStatusClass(document.ProcessingStatus)">@document.ProcessingStatus</span></div>
                 </div>
-
             </section>
-
 
             <section class="panel">
-
-                <div class="panel-heading">
-                    <div>
-                        <h2>Extraction diagnostics</h2>
-
-                        <p class="muted">
-                            Quality indicators for subsequent analysis.
-                        </p>
-                    </div>
-                </div>
-
+                <div class="panel-heading"><div><h2>Extraction diagnostics</h2><p class="muted">Quality indicators for subsequent analysis.</p></div></div>
                 <div class="diagnostics-list">
-
-                    <DiagnosticRow Label="Text extraction"
-                                   Value="@ExtractionResult"
-                                   Success="@ExtractionHasUsableText" />
-
-                    <DiagnosticRow Label="Pages detected"
-                                   Value="@PagesDetected"
-                                   Success="@(document.PageCount > 0)" />
-
-                    <DiagnosticRow Label="Characters extracted"
-                                   Value="@CharacterCount.ToString("N0")"
-                                   Success="@(CharacterCount > 0)" />
-
-                    <DiagnosticRow Label="OCR used"
-                                   Value="@(OcrUsed ? "Yes" : "No")"
-                                   Success="@ExtractionSucceeded" />
-
-                    <DiagnosticRow Label="Processing errors"
-                                   Value="@(HasProcessingError ? "Yes" : "None")"
-                                   Success="@(!HasProcessingError)" />
-
+                    <DiagnosticRow Label="Text extraction" Value="@ExtractionResult" Success="@(details.CharacterCount > 0)" />
+                    <DiagnosticRow Label="Pages detected" Value="@PagesDetected" Success="@(document.PageCount > 0)" />
+                    <DiagnosticRow Label="Characters extracted" Value="@details.CharacterCount.ToString("N0")" Success="@(details.CharacterCount > 0)" />
+                    <DiagnosticRow Label="OCR attempted" Value="@(details.UsesPersistedDiagnostics ? $"{details.OcrAttemptedCount} page(s)" : "Unknown (legacy)")" Success="@(details.UsesPersistedDiagnostics)" />
+                    <DiagnosticRow Label="OCR text returned" Value="@($"{details.OcrSuccessCount} page(s)")" Success="@(details.UsesPersistedDiagnostics)" />
+                    <DiagnosticRow Label="Needs review" Value="@(details.UsesPersistedDiagnostics ? $"{details.NeedsReviewCount} page(s)" : "Not evaluated")" Success="@(details.UsesPersistedDiagnostics && details.NeedsReviewCount == 0)" />
+                    <DiagnosticRow Label="Missing text" Value="@(details.UsesPersistedDiagnostics ? $"{details.MissingCount} page(s)" : "Not evaluated")" Success="@(details.UsesPersistedDiagnostics && details.MissingCount == 0)" />
+                    <DiagnosticRow Label="Quality warnings" Value="@(details.UsesPersistedDiagnostics ? details.WarningCount.ToString("N0") : "Not evaluated")" Success="@(details.UsesPersistedDiagnostics && details.WarningCount == 0)" />
+                    <DiagnosticRow Label="Processing errors" Value="@(string.IsNullOrWhiteSpace(document.ProcessingError) ? "None" : "Yes")" Success="@(string.IsNullOrWhiteSpace(document.ProcessingError))" />
                 </div>
-
             </section>
-
         </div>
 
-
         <section class="panel extracted-text-panel">
-
             <div class="panel-heading extracted-heading">
-
-                <div>
-                    <h2>Extracted text</h2>
-
-                    <p class="muted">
-                        Text extracted from the PDF,
-                        organized by document page.
-                    </p>
-                </div>
-
-                <div class="text-summary">
-                    @(ExtractedPages.Count) page(s)
-                    ·
-                    @CharacterCount.ToString("N0") characters
-                </div>
-
+                <div><h2>Extracted text and page diagnostics</h2><p class="muted">Page-by-page extraction details and quality warnings.</p></div>
+                <div class="text-summary">@details.Pages.Count page(s) · @details.CharacterCount.ToString("N0") characters</div>
             </div>
-
-            @if (ExtractedPages.Count == 0)
+            @if (details.Pages.Count == 0)
             {
-                <div class="empty-state">
-
-                    <div class="empty-icon">
-                        📄
-                    </div>
-
-                    <h3>No extractable text</h3>
-
-                </div>
+                <div class="empty-state"><h3>No extractable text or page diagnostics</h3></div>
             }
             else
             {
                 <div class="page-list">
-
-                    @foreach (var extractedItem in ExtractedPages)
+                    @foreach (var extractedpage in details.Pages)
                     {
-                        <article class="extracted-page">
-
+                        <article class="extracted-page" @key="extractedpage.PageNumber">
                             <div class="extracted-page-header">
-                                <strong>@($"Page {extractedItem.PageNumber}")</strong>
-
-                                <span class="muted">
-                                    @extractedItem.Source
-                                </span>
-                                <span>
-                                    @(extractedItem.Text.Length.ToString("N0"))
-                                    characters
-                                </span>
+                                <strong>Page @extractedpage.PageNumber</strong>
+                                <span>@SourceLabel(extractedpage.Source)</span>
+                                <span>@extractedpage.CharacterCount.ToString("N0") characters</span>
+                                <span class="@GetQualityClass(extractedpage.QualityStatus)">@QualityLabel(extractedpage.QualityStatus)</span>
                             </div>
-
-                            <pre class="extracted-page-text">@(extractedItem.Text)</pre>
-
+                            <div class="page-diagnostic-meta">
+                                <span>OCR attempted: @(extractedpage.OcrAttempted is null ? "Unknown" : extractedpage.OcrAttempted.Value ? "Yes" : "No")</span>
+                                @if (extractedpage.HasPersistedDiagnostics)
+                                {
+                                    <span>Persisted diagnostics</span>
+                                }
+                            </div>
+                            @if (extractedpage.Warnings.Count > 0)
+                            {
+                                <div class="page-warning-list" aria-label="Page quality warnings">
+                                    @foreach (var warning in extractedpage.Warnings)
+                                    {
+                                        <div class="page-warning" role="note">
+                                            <strong>@warning.Severity — @warning.Code:</strong> @warning.Message
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            @if (string.IsNullOrEmpty(extractedpage.Text))
+                            {
+                                <p class="page-empty-text">[No text extracted]</p>
+                            }
+                            else
+                            {
+                                <pre class="extracted-page-text">@extractedpage.Text</pre>
+                            }
                         </article>
                     }
-
                 </div>
             }
-
         </section>
-
-    </div>
-}
-
+    }
+</div>
 
 @code {
-
-    [Parameter]
-    public int Id { get; set; }
-
+    [Parameter] public int Id { get; set; }
     private PolicyDocumentDto? document;
-
+    private DocumentDetailsProjection.Result? details;
     private bool isLoading = true;
+    private string? loadError;
 
-    private List<ExtractedPage> ExtractedPages { get; set; } = [];
-
-
+    
     protected override async Task OnParametersSetAsync()
     {
         isLoading = true;
+        loadError = null;
+        document = null;
+        details = null;
 
         try
         {
-            document =
-                await DocumentService.GetByIdAsync(Id);
+            document = await DocumentService.GetByIdAsync(Id);
 
-            ExtractedPages =
-                ParseExtractedPages(
-                    document?.ExtractedText);
+            if (document is not null)
+            {
+                var pages =
+                    await DocumentService.GetPagesAsync(Id);
+
+                details = DocumentDetailsProjection.Create(
+                    document,
+                    pages);
+            }
+        }
+        catch (Exception)
+        {
+            // Do not expose sensitive exception details
+            // in the browser.
+            loadError =
+                "Unable to load document details. " +
+                "Check the application logs and try again.";
         }
         finally
         {
@@ -311,179 +181,53 @@ else
     }
 
 
-    private int CharacterCount =>
-    ExtractedPages
-        .Where(page =>
-            page.Source != "None" &&
-            page.Text != "[No text extracted]")
-        .Sum(page => page.Text.Length);
-
-
-    private bool HasProcessingError =>
-        !string.IsNullOrWhiteSpace(
-            document?.ProcessingError);
-
-
-    private bool RequiresOcr =>
-    string.Equals(
-        document?.ProcessingStatus,
-        "NeedsOcr",
-        StringComparison.OrdinalIgnoreCase)
-    ||
-    (
-        CharacterCount == 0 &&
-        document?.PageCount > 0
-    );
-
-    private bool OcrUsed =>
-    ExtractedPages.Any(page =>
-        string.Equals(
-            page.Source,
-            "PaddleOcr",
-            StringComparison.OrdinalIgnoreCase));
-
-
-    private bool ExtractionSucceeded =>
-    (
-        string.Equals(
-            document?.ProcessingStatus,
-            "Completed",
-            StringComparison.OrdinalIgnoreCase)
-        ||
-        string.Equals(
-            document?.ProcessingStatus,
-            "CompletedHybrid",
-            StringComparison.OrdinalIgnoreCase)
-    )
-    && CharacterCount > 0;
-
-
-    private string ExtractionResult =>
-    document?.ProcessingStatus switch
+    private string ExtractionResult => document?.ProcessingStatus switch
     {
-        "Completed" or "CompletedHybrid"
-            when CharacterCount > 0 => "Successful",
-
+        "Completed" or "CompletedHybrid" when details?.CharacterCount > 0 => "Successful",
         "PartiallyCompleted" => "Partially successful",
-
         "Failed" => "Failed",
-
         _ => document?.ProcessingStatus ?? "Unknown"
     };
 
-    private bool ExtractionHasUsableText =>
-    CharacterCount > 0 &&
-    document?.ProcessingStatus is
-        "Completed" or
-        "CompletedHybrid" or
-        "PartiallyCompleted";
+    private string PagesDetected => document?.PageCount?.ToString() ?? "Unknown";
+    private void BackToDocuments() => Navigation.NavigateTo("/documents");
 
-    private string PagesDetected =>
-        document?.PageCount?.ToString() ?? "Unknown";
-
-
-    private void BackToDocuments()
+    private static string SourceLabel(string source) => source switch
     {
-        Navigation.NavigateTo("/documents");
-    }
+        "PdfPig" => "PdfPig (native text)",
+        "PaddleOcr" => "PaddleOCR",
+        "None" => "None",
+        _ => "Unknown"
+    };
 
-
-    
-    private static List<ExtractedPage> ParseExtractedPages(
-        string? text)
+    private static string QualityLabel(string status) => status switch
     {
-        if (string.IsNullOrWhiteSpace(text))
-            return [];
+        "Good" => "Good",
+        "NeedsReview" => "Needs review",
+        "Missing" => "Missing text",
+        _ => "Not evaluated"
+    };
 
-        // Phase 2C hybrid extraction format:
-        // ===== PAGE 1 [PaddleOcr] =====
-        // ===== PAGE 2 [PdfPig] =====
-
-        const string hybridPattern =
-            @"^===== PAGE (?<page>\d+) \[(?<source>[^\]]+)\] =====[ \t]*\r?\n(?<text>.*?)(?=^===== PAGE \d+ \[[^\]]+\] =====|\z)";
-
-        var hybridMatches = Regex.Matches(
-            text,
-            hybridPattern,
-            RegexOptions.Multiline | RegexOptions.Singleline);
-
-        if (hybridMatches.Count > 0)
-        {
-            return hybridMatches
-                .Select(match => new ExtractedPage(
-                    int.Parse(match.Groups["page"].Value),
-                    match.Groups["text"].Value.Trim(),
-                    match.Groups["source"].Value))
-                .OrderBy(page => page.PageNumber)
-                .ToList();
-        }
-
-        // Backward compatibility with Phase 2B:
-        // --- Page 1 ---
-        // --- Page 2 ---
-
-        const string legacyPattern =
-            @"--- Page (?<page>\d+) ---\s*(?<text>.*?)(?=--- Page \d+ ---|\z)";
-
-        var legacyMatches = Regex.Matches(
-            text,
-            legacyPattern,
-            RegexOptions.Singleline);
-
-        if (legacyMatches.Count > 0)
-        {
-            return legacyMatches
-                .Select(match => new ExtractedPage(
-                    int.Parse(match.Groups["page"].Value),
-                    match.Groups["text"].Value.Trim(),
-                    "PdfPig"))
-                .OrderBy(page => page.PageNumber)
-                .ToList();
-        }
-
-        // Fallback for older documents without page markers.
-        return
-        [
-            new ExtractedPage(1, text.Trim(), "Unknown")
-        ];
-    }
-
-
-
-    private static string FormatFileSize(
-        long bytes)
+    private static string GetQualityClass(string status) => status switch
     {
-        if (bytes >= 1024L * 1024L)
-            return $"{bytes / 1024d / 1024d:N2} MB";
+        "Good" => "diagnostic-status success",
+        "NeedsReview" => "diagnostic-status warning",
+        "Missing" => "diagnostic-status failure",
+        _ => "diagnostic-status neutral"
+    };
 
-        if (bytes >= 1024L)
-            return $"{bytes / 1024d:N1} KB";
+    private static string GetStatusClass(string status) => status.ToLowerInvariant() switch
+    {
+        "completed" or "completedhybrid" => "diagnostic-status success",
+        "partiallycompleted" or "needsocr" => "diagnostic-status warning",
+        "failed" => "diagnostic-status failure",
+        _ => "diagnostic-status neutral"
+    };
 
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes >= 1024L * 1024L) return $"{bytes / 1024d / 1024d:N2} MB";
+        if (bytes >= 1024L) return $"{bytes / 1024d:N1} KB";
         return $"{bytes:N0} bytes";
     }
-
-
-    private static string GetStatusClass(string status)
-    {
-        return status.ToLowerInvariant() switch
-        {
-            "completed" or "completedhybrid" =>
-                "diagnostic-status success",
-
-            "partiallycompleted" or "needsocr" =>
-                "diagnostic-status warning",
-
-            "failed" =>
-                "diagnostic-status failure",
-
-            _ =>
-                "diagnostic-status neutral"
-        };
-    }
-
-
-    private sealed record ExtractedPage(
-        int PageNumber,
-        string Text,
-        string Source);
 }
