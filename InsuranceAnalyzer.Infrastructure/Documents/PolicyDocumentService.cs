@@ -68,14 +68,15 @@ public sealed class PolicyDocumentService(
             .SingleOrDefaultAsync(cancellationToken);
     }
 
-    
-        public async Task<PolicyDocument> UploadAsync(
-    int insurancePolicyId,
-    string originalFileName,
-    string contentType,
-    long fileSizeBytes,
-    Stream content,
-    CancellationToken cancellationToken = default)
+
+
+    public async Task<PolicyDocument> UploadAsync(
+        int insurancePolicyId,
+        string originalFileName,
+        string contentType,
+        long fileSizeBytes,
+        Stream content,
+        CancellationToken cancellationToken = default)
     {
         logger.LogInformation(
             "Upload started. PolicyId={PolicyId}, File={File}, Size={Size}, ContentType={ContentType}",
@@ -85,36 +86,21 @@ public sealed class PolicyDocumentService(
             contentType);
 
         if (fileSizeBytes <= 0)
-            throw new InvalidOperationException("The selected file is empty.");
+            throw new InvalidOperationException(
+                "The selected file is empty.");
 
         if (fileSizeBytes > options.Value.MaxFileSizeBytes)
             throw new InvalidOperationException(
-                $"Maximum PDF size is {options.Value.MaxFileSizeBytes / 1024 / 1024} MB.");
-
-        logger.LogInformation("File size validation passed.");
+                $"Maximum PDF size is " +
+                $"{options.Value.MaxFileSizeBytes / 1024 / 1024} MB.");
 
         await using var buffer = new MemoryStream();
 
-        logger.LogInformation("Starting browser stream copy.");
-
         await content.CopyToAsync(buffer, cancellationToken);
-
-        logger.LogInformation(
-            "Browser stream copy completed. Bytes={Length}",
-            buffer.Length);
 
         var bytes = buffer.ToArray();
 
-        logger.LogInformation("Converted upload stream to byte array.");
-
-        var hash = Convert.ToHexString(
-            SHA256.HashData(bytes));
-
-        logger.LogInformation(
-            "SHA256 completed. Hash={Hash}",
-            hash);
-
-        // Verify actual PDF signature instead of trusting extension/MIME type.
+        // Verify the PDF signature.
         if (bytes.Length < 5 ||
             bytes[0] != '%' ||
             bytes[1] != 'P' ||
@@ -126,8 +112,8 @@ public sealed class PolicyDocumentService(
                 "The selected file is not a valid PDF.");
         }
 
-        //var hash = Convert.ToHexString(
-           // SHA256.HashData(bytes));
+        var hash = Convert.ToHexString(
+            SHA256.HashData(bytes));
 
         await using var db =
             await contextFactory.CreateDbContextAsync(
@@ -158,8 +144,7 @@ public sealed class PolicyDocumentService(
         var storedFileName =
             $"{Guid.NewGuid():N}.pdf";
 
-        await using var saveStream =
-            new MemoryStream(bytes);
+        await using var saveStream = new MemoryStream(bytes);
 
         var storagePath =
             await storage.SaveAsync(
@@ -183,8 +168,8 @@ public sealed class PolicyDocumentService(
 
         db.PolicyDocuments.Add(document);
 
-        await db.SaveChangesAsync(
-            cancellationToken);
+        // Save the parent document first to obtain its ID.
+        await db.SaveChangesAsync(cancellationToken);
 
         try
         {
@@ -196,12 +181,33 @@ public sealed class PolicyDocumentService(
                     physicalPath,
                     cancellationToken);
 
-            document.ExtractedText =
-                extraction.FullText;
+            // Preserve the existing combined-text format.
+            document.ExtractedText = extraction.FullText;
+            document.PageCount = extraction.PageCount;
 
-            document.PageCount =
-                extraction.PageCount;
+            // Phase 2D.2C:
+            // The validator already ran in the extraction service.
+            // Map the validated page results to database entities.
+            var pageEntities = extraction.Pages
+                .Select(page =>
+                    PolicyDocumentPageMapper.ToEntity(
+                        document.Id,
+                        page))
+                .ToList();
 
+            // Check completeness before inserting records.
+            if (pageEntities.Count != extraction.PageCount)
+            {
+                throw new InvalidOperationException(
+                    "Extracted page count does not match " +
+                    "the number of page diagnostics.");
+            }
+
+            // The database has a unique index on
+            // (PolicyDocumentId, PageNumber).
+            db.PolicyDocumentPages.AddRange(pageEntities);
+
+            // Preserve the existing processing status rules.
             if (!extraction.HasText)
             {
                 document.ProcessingStatus = "Failed";
@@ -220,22 +226,64 @@ public sealed class PolicyDocumentService(
             }
 
             document.ProcessingError = null;
+
+            // EF Core saves the updated document and the new
+            // page records together in a transaction.
+            await db.SaveChangesAsync(cancellationToken);
+
+            logger.LogInformation(
+                "Document {DocumentId} processed. " +
+                "Pages={PageCount}, " +
+                "PageRecords={RecordCount}, " +
+                "Status={Status}",
+                document.Id,
+                extraction.PageCount,
+                pageEntities.Count,
+                document.ProcessingStatus);
+        }
+        catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
+        {
+            // Do not hide request cancellation as extraction success.
+            throw;
         }
         catch (Exception ex)
         {
+            logger.LogError(
+                ex,
+                "Document processing or diagnostic persistence " +
+                "failed for DocumentId={DocumentId}.",
+                document.Id);
+
+            // If page inserts were pending when SaveChanges failed,
+            // remove them from the EF Core change tracker before
+            // saving the failed document status.
+            foreach (var entry in db.ChangeTracker
+                         .Entries<PolicyDocumentPage>()
+                         .Where(x => x.State == EntityState.Added)
+                         .ToList())
+            {
+                entry.State = EntityState.Detached;
+            }
+
+            document.Pages.Clear();
+
             document.ProcessingStatus = "Failed";
 
-            document.ProcessingError =
-                ex.GetBaseException().Message.Length > 2000
-                    ? ex.GetBaseException().Message[..2000]
-                    : ex.GetBaseException().Message;
-        }
+            var errorMessage =
+                ex.GetBaseException().Message;
 
-        await db.SaveChangesAsync(
-            cancellationToken);
+            document.ProcessingError =
+                errorMessage.Length > 2000
+                    ? errorMessage[..2000]
+                    : errorMessage;
+
+            await db.SaveChangesAsync(cancellationToken);
+        }
 
         return document;
     }
+
 
     public async Task<PolicyDocumentFile?> GetFileAsync(
         int id,
@@ -294,5 +342,26 @@ public sealed class PolicyDocumentService(
 
         await db.SaveChangesAsync(
             cancellationToken);
+    }
+    public async Task<IReadOnlyList<PolicyDocumentPageDto>> GetPagesAsync(
+    int documentId,
+    CancellationToken cancellationToken = default)
+    {
+        if (documentId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(documentId));
+
+        await using var db =
+            await contextFactory.CreateDbContextAsync(
+                cancellationToken);
+
+        var pages = await db.PolicyDocumentPages
+            .AsNoTracking()
+            .Where(x => x.PolicyDocumentId == documentId)
+            .OrderBy(x => x.PageNumber)
+            .ToListAsync(cancellationToken);
+
+        return pages
+            .Select(PolicyDocumentPageMapper.ToDto)
+            .ToList();
     }
 }

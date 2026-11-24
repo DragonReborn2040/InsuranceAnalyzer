@@ -11,6 +11,11 @@ public interface IPolicyDocumentService
         int id,
         CancellationToken cancellationToken = default);
 
+    // Phase 2D.2C: Retrieve structured page diagnostics.
+    Task<IReadOnlyList<PolicyDocumentPageDto>> GetPagesAsync(
+        int documentId,
+        CancellationToken cancellationToken = default);
+
     Task<PolicyDocument> UploadAsync(
         int insurancePolicyId,
         string originalFileName,
