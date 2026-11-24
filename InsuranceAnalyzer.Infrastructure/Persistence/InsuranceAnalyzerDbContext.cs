@@ -10,6 +10,7 @@ public sealed class InsuranceAnalyzerDbContext(DbContextOptions<InsuranceAnalyze
     public DbSet<InsuranceProduct> InsuranceProducts => Set<InsuranceProduct>();
     public DbSet<InsurancePolicy> InsurancePolicies => Set<InsurancePolicy>();
     public DbSet<PolicyDocument> PolicyDocuments => Set<PolicyDocument>();
+    public DbSet<PolicyDocumentPage> PolicyDocumentPages =>  Set<PolicyDocumentPage>();
     public DbSet<PolicyBenefit> PolicyBenefits => Set<PolicyBenefit>();
     public DbSet<PremiumSchedule> PremiumSchedules => Set<PremiumSchedule>();
     public DbSet<SurvivalBenefitPayment> SurvivalBenefitPayments => Set<SurvivalBenefitPayment>();
@@ -91,6 +92,58 @@ public sealed class InsuranceAnalyzerDbContext(DbContextOptions<InsuranceAnalyze
             e.HasOne(x => x.InsurancePolicy)
                 .WithMany(x => x.Documents)
                 .HasForeignKey(x => x.InsurancePolicyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PolicyDocumentPage>(e =>
+        {
+            e.ToTable("PolicyDocumentPages");
+
+            e.HasKey(x => x.Id);
+
+            e.Property(x => x.PageNumber)
+                .IsRequired();
+
+            e.Property(x => x.ExtractionSource)
+                .HasMaxLength(30)
+                .IsRequired();
+
+            e.Property(x => x.ExtractedText)
+                .HasColumnType("nvarchar(max)")
+                .IsRequired();
+
+            e.Property(x => x.CharacterCount)
+                .IsRequired();
+
+            e.Property(x => x.AlphanumericCount)
+                .IsRequired();
+
+            e.Property(x => x.SuspiciousCharacterCount)
+                .IsRequired();
+
+            e.Property(x => x.SuspiciousCharacterRatio)
+                .IsRequired();
+
+            e.Property(x => x.QualityStatus)
+                .HasMaxLength(30)
+                .IsRequired();
+
+            e.Property(x => x.QualityWarningsJson)
+                .HasColumnType("nvarchar(max)");
+
+            e.Property(x => x.OcrAttempted)
+                .IsRequired();
+
+            e.HasIndex(x => new
+            {
+                x.PolicyDocumentId,
+                x.PageNumber
+            })
+            .IsUnique();
+
+            e.HasOne(x => x.PolicyDocument)
+                .WithMany(x => x.Pages)
+                .HasForeignKey(x => x.PolicyDocumentId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

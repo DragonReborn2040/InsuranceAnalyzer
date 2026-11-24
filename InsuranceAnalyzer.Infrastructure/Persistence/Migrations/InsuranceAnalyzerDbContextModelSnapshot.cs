@@ -451,6 +451,60 @@ namespace InsuranceAnalyzer.Infrastructure.Persistence.Migrations
                     b.ToTable("PolicyDocuments", (string)null);
                 });
 
+            modelBuilder.Entity("InsuranceAnalyzer.Core.Entities.PolicyDocumentPage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AlphanumericCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CharacterCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExtractedText")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ExtractionSource")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<bool>("OcrAttempted")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("PageNumber")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PolicyDocumentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("QualityStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("QualityWarningsJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SuspiciousCharacterCount")
+                        .HasColumnType("int");
+
+                    b.Property<double>("SuspiciousCharacterRatio")
+                        .HasColumnType("float");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PolicyDocumentId", "PageNumber")
+                        .IsUnique();
+
+                    b.ToTable("PolicyDocumentPages", (string)null);
+                });
+
             modelBuilder.Entity("InsuranceAnalyzer.Core.Entities.PremiumSchedule", b =>
                 {
                     b.Property<int>("Id")
@@ -605,6 +659,17 @@ namespace InsuranceAnalyzer.Infrastructure.Persistence.Migrations
                     b.Navigation("InsurancePolicy");
                 });
 
+            modelBuilder.Entity("InsuranceAnalyzer.Core.Entities.PolicyDocumentPage", b =>
+                {
+                    b.HasOne("InsuranceAnalyzer.Core.Entities.PolicyDocument", "PolicyDocument")
+                        .WithMany("Pages")
+                        .HasForeignKey("PolicyDocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PolicyDocument");
+                });
+
             modelBuilder.Entity("InsuranceAnalyzer.Core.Entities.PremiumSchedule", b =>
                 {
                     b.HasOne("InsuranceAnalyzer.Core.Entities.InsurancePolicy", "InsurancePolicy")
@@ -652,6 +717,11 @@ namespace InsuranceAnalyzer.Infrastructure.Persistence.Migrations
                     b.Navigation("Policies");
 
                     b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("InsuranceAnalyzer.Core.Entities.PolicyDocument", b =>
+                {
+                    b.Navigation("Pages");
                 });
 #pragma warning restore 612, 618
         }
