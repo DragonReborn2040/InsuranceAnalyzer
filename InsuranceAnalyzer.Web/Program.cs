@@ -31,6 +31,13 @@ builder.Services.AddScoped<IPolicyDocumentService,
 builder.Services.AddScoped<IPdfPageOcrService, PaddleOcrPageService>();
 
 builder.Services.AddScoped<HybridPdfTextExtractionService>();
+builder.Services.Configure<DocumentQualityValidationOptions>(
+    builder.Configuration.GetSection(
+        DocumentQualityValidationOptions.SectionName));
+
+builder.Services.AddScoped<
+    IDocumentExtractionQualityValidator,
+    DocumentExtractionQualityValidator>();
 
 var app = builder.Build();
 

@@ -4,5 +4,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Options" Version="11.0.0" />
+  </ItemGroup>
   <ItemGroup><ProjectReference Include="..\InsuranceAnalyzer.Core\InsuranceAnalyzer.Core.csproj" /></ItemGroup>
 </Project>
