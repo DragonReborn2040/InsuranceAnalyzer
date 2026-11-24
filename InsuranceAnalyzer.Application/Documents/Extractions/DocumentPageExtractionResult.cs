@@ -8,8 +8,19 @@ public sealed class DocumentPageExtractionResult
 
     public DocumentExtractionSource Source { get; init; }
 
+    // Phase 2D.2B
+    public bool OcrAttempted { get; init; }
+
+    public DocumentPageQualityResult? Quality { get; init; }
+
     public bool HasMeaningfulText =>
         !string.IsNullOrWhiteSpace(Text);
 
-    public int CharacterCount => Text?.Length ?? 0;
+    public int CharacterCount => Text.Length;
+
+    public string QualityStatus =>
+        Quality?.QualityStatus ?? "NotEvaluated";
+
+    public IReadOnlyList<DocumentQualityWarning> QualityWarnings =>
+        Quality?.Warnings ?? [];
 }
